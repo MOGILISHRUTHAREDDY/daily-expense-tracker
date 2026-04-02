@@ -7,12 +7,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set today's date as default
     document.getElementById('date').valueAsDate = new Date();
 
-    const fetchExpenses = async () => {
+    const getLocalExpenses = () => {
+        const stored = localStorage.getItem('expenses');
+        return stored ? JSON.parse(stored) : [];
+    };
+
+    const saveLocalExpenses = (expenses) => {
+        localStorage.setItem('expenses', JSON.stringify(expenses));
+    };
+
+    const fetchExpenses = () => {
         try {
-            const response = await fetch('/api/expenses');
-            if (!response.ok) throw new Error('Failed to fetch data');
-            
-            const expenses = await response.json();
+            const expenses = getLocalExpenses();
+            // Sort by date DESC
+            expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
             renderExpenses(expenses);
         } catch (error) {
             console.error(error);
@@ -68,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', async (e) => {
                 const id = e.currentTarget.getAttribute('data-id');
                 if (confirm('Are you sure you want to delete this expense?')) {
-                    await deleteExpense(id);
+                    deleteExpense(id);
                 }
             });
         });
@@ -77,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         totalBalanceEl.textContent = `₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
-    const addExpense = async (e) => {
+    const addExpense = (e) => {
         e.preventDefault();
         
         const description = document.getElementById('description').value;
@@ -85,35 +93,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const category = document.getElementById('category').value;
         const date = document.getElementById('date').value;
 
-        const newExpense = { description, amount, category, date };
+        const newExpense = { 
+            id: Date.now().toString(),
+            description, 
+            amount, 
+            category, 
+            date 
+        };
 
         try {
-            const response = await fetch('/api/expenses', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(newExpense)
-            });
-
-            if (!response.ok) throw new Error('Failed to add expense');
+            const expenses = getLocalExpenses();
+            expenses.push(newExpense);
+            saveLocalExpenses(expenses);
             
             expenseForm.reset();
             document.getElementById('date').valueAsDate = new Date(); // Reset date to today
             fetchExpenses();
         } catch (error) {
             console.error('Error:', error);
-            alert('Failed to add expense. Ensure the server is running properly!');
+            alert('Failed to add expense.');
         }
     };
 
-    const deleteExpense = async (id) => {
+    const deleteExpense = (id) => {
         try {
-            const response = await fetch(`/api/expenses/${id}`, {
-                method: 'DELETE'
-            });
-
-            if (!response.ok) throw new Error('Failed to delete expense');
+            let expenses = getLocalExpenses();
+            expenses = expenses.filter(exp => exp.id !== String(id));
+            saveLocalExpenses(expenses);
             fetchExpenses();
         } catch (error) {
             console.error('Error:', error);
